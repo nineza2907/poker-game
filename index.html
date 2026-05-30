@@ -274,13 +274,13 @@ input[type=range]{flex:1;accent-color:var(--green);cursor:pointer;}
 <body>
 
 <!-- SETUP MODAL -->
-<div class="modal-bg" id="setupModal">
+<div class="modal-bg" id="setupModal" style="display:none">
   <div class="modal-box">
     <div class="modal-icon">🏃</div>
     <div class="modal-title">ยินดีต้อนรับ Tiradage!</div>
-    <div class="modal-sub">กำหนดวันเริ่มต้นโปรแกรม 12 สัปดาห์</div>
-    <input type="date" class="modal-input" id="startDateInput">
-    <button class="btn" style="width:100%;padding:13px;font-size:15px;" onclick="saveStartDate()">🚀 เริ่มโปรแกรม</button>
+    <div class="modal-sub">กำหนดวันเริ่มต้นโปรแกรม 12 สัปดาห์<br><span style="font-size:11px;color:var(--t3)">เลือกวันที่คุณเริ่มหรือวางแผนจะเริ่มวิ่ง</span></div>
+    <input type="date" class="modal-input" id="startDateInput" style="cursor:pointer;font-size:16px;padding:14px;">
+    <button class="btn" style="width:100%;padding:13px;font-size:15px;margin-top:6px;" onclick="saveStartDate()">🚀 เริ่มโปรแกรม</button>
   </div>
 </div>
 
@@ -601,24 +601,31 @@ input[type=range]{flex:1;accent-color:var(--green);cursor:pointer;}
 </main>
 <script>
 // ══════════════════════════════════════
+//  SAFE LOCALSTORAGE (Edge tracking prevention fix)
+// ══════════════════════════════════════
+function lsGet(k,def){try{const v=localStorage.getItem(k);return v!==null?v:def;}catch(e){return def;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){console.warn('Storage blocked:',k);}}
+function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+
+// ══════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════
 const S={
-  startDate:localStorage.getItem('sd')||null,
-  runs:JSON.parse(localStorage.getItem('runs')||'[]'),
-  checks:JSON.parse(localStorage.getItem('checks')||'{}'),
-  mob:JSON.parse(localStorage.getItem('mob')||'{}'),
-  pain:JSON.parse(localStorage.getItem('pain')||'[]'),
+  startDate:lsGet('sd',null),
+  runs:JSON.parse(lsGet('runs','[]')),
+  checks:JSON.parse(lsGet('checks','{}')),
+  mob:JSON.parse(lsGet('mob','{}')),
+  pain:JSON.parse(lsGet('pain','[]')),
   activeDay:null,planWeek:1,
 };
-function saveLocal(){localStorage.setItem('runs',JSON.stringify(S.runs));localStorage.setItem('checks',JSON.stringify(S.checks));localStorage.setItem('mob',JSON.stringify(S.mob));localStorage.setItem('pain',JSON.stringify(S.pain));}
+function saveLocal(){lsSet('runs',JSON.stringify(S.runs));lsSet('checks',JSON.stringify(S.checks));lsSet('mob',JSON.stringify(S.mob));lsSet('pain',JSON.stringify(S.pain));}
 
 // ══════════════════════════════════════
 //  GITHUB GIST SYNC
 // ══════════════════════════════════════
 const GIST={
-  token:localStorage.getItem('gh_token')||null,
-  id:localStorage.getItem('gh_gist')||null,
+  token:lsGet('gh_token',null),
+  id:lsGet('gh_gist',null),
   status:'none', // none | ok | err | syncing
   saveTimer:null,
 
@@ -713,7 +720,7 @@ async function createNewGist(){
   try{
     const id=await GIST.create(tmpToken);
     GIST.token=tmpToken;GIST.id=id;
-    localStorage.setItem('gh_token',tmpToken);localStorage.setItem('gh_gist',id);
+    lsSet('gh_token',tmpToken);lsSet('gh_gist',id);
     document.getElementById('displayGistId').textContent=id;
     document.getElementById('gistSuccessMsg').textContent=`Gist สร้างแล้ว! ข้อมูลจะ sync อัตโนมัติ`;
     gotoStep(5);GIST.setStatus('ok');
@@ -766,29 +773,74 @@ function showView(v){
 // ══════════════════════════════════════
 const LONG=[3,4,5,4,6,6.5,7,6,8,8.5,9,10];
 function ph(w){return w<=4?1:w<=8?2:3;}
+// ══ INTEGRATED 7-DAY PLAN (Calisthenics 5 days + Running 3 days) ══
+// Mon: Pull Day + Easy Run | Tue: Push Day | Wed: Legs Day (no run)
+// Thu: Mobility Hip/Ankle + Easy Run | Fri: Mobility Shoulder (prep)
+// Sat: Long Run (evening) | Sun: Full Rest
 function getWeekPlan(w){
   const p=ph(w),ld=LONG[w-1];
-  const ep=p===1?'8:30–9:00':p===2?'7:30–8:00':'7:00–7:30';
-  const lp=p===1?'8:30–9:00':p===2?'7:00–7:30':'6:30–7:00';
-  const rp=p===1?'9:00–10:00':p===2?'8:30–9:00':'8:00–9:00';
-  const ed=p===1?'2.5 กม.':p===2?'3–4 กม.':'4–5 กม.';
-  const et=p===1?'20–25 น.':p===2?'25–30 น.':'30–35 น.';
-  const rd=p===1?'2 กม.':p===2?'2.5 กม.':'3 กม.';
-  const thd=p===1?'Squat, Lunge, Calf Raise — เน้นเสถียรภาพเข่า':p===2?'Single-leg Squat, Hip Abductor, Glute Bridge':'Bulgarian Split Squat, Step-up';
-  const sd=w===12?'🏆 Race Day! 10 กม. @ 6:00 นาที/กม.':p===1?`${ld} กม. — วิ่ง/เดินสลับได้ เน้นเวลาบนขา`:p===2?`${ld} กม. — steady effort รักษาฟอร์ม`:`${ld} กม. — รวมช่วง Race Pace`;
+  // Pace zones
+  const ep=p===1?'8:30–9:00':p===2?'7:30–8:00':'7:00–7:30';   // easy
+  const lp=p===1?'8:30–9:00':p===2?'7:00–7:30':'6:30–7:00';   // long run
+  const ip=p===3?'5:30–6:00':'—';                                // interval
+  // Distances
+  const ed1=p===1?'2.5 กม.':p===2?'3 กม.':'4 กม.';  // Mon easy
+  const ed2=p===1?'3 กม.':p===2?'4 กม.':'5 กม.';    // Thu easy
+  const et1=p===1?'20–25 น.':p===2?'25–30 น.':'28–35 น.';
+  const et2=p===1?'25–30 น.':p===2?'30–35 น.':'35–40 น.';
+  // Monday run detail (Phase 3 = Interval)
+  const monRunLabel=p===3?'Interval Run':'วิ่งเบา';
+  const monRunDetail=p===3
+    ?`Interval ${w<=9?'400ม.×6':w<=10?'800ม.×4':w<=11?'1กม.×4':'Taper'} @ ${ip} — พัก 90 วิ–2 น.`
+    :`วิ่งเบา ${ed1} @ ${ep} — พูดได้ขณะวิ่ง`;
+  const monPace=p===3?ip:ep;
+  const monRunDur=p===3?'35–45 น.':et1;
+  // Thursday run detail
+  const thuRunDetail=p===2
+    ?`วิ่งเบา/Tempo ${ed2} @ 7:00–7:30 — เริ่มดัน pace`
+    :`วิ่งเบา ${ed2} @ ${ep}`;
+  // Saturday Long Run
+  const satDetail=w===12?'🏆 Race Day! 10 กม. @ 6:00 นาที/กม.':
+    p===1?`${ld} กม. — วิ่ง/เดินสลับได้ เน้นเวลาบนขา`:
+    p===2?`${ld} กม. — steady pace รักษาฟอร์มตลอด`:
+    `${ld} กม. — รวมช่วง Race Pace 2–3 กม. กลางทาง`;
   return [
-    {day:'จันทร์',type:'rest',label:'พักผ่อน',detail:'พักเต็มที่ เดินเบาๆ ได้',pace:'—',dur:'—'},
-    {day:'อังคาร',type:'easy',label:'วิ่งเบา',detail:`${ed} วิ่งเบา พูดได้ขณะวิ่ง`,pace:ep,dur:et},
-    {day:'พุธ',type:'mobility',label:'Mobility',detail:'Hip Flexor, IT Band, หลัง, หมุนข้อเท้า',pace:'—',dur:'20–30 น.'},
-    {day:'พฤหัสบดี',type:'calisthenics',label:'Leg Day',detail:thd,pace:'—',dur:'40–50 น.'},
-    {day:'ศุกร์',type:'calisthenics',label:'Calisthenics',detail:'ส่วนบน + Core — หลีกเลี่ยงขาหนัก',pace:'—',dur:'35–45 น.'},
-    {day:'เสาร์',type:'long',label:'Long Run',detail:sd,pace:lp,dur:`${ld} กม.`},
-    {day:'อาทิตย์',type:'recovery',label:'วิ่งฟื้นตัว',detail:'วิ่งเบามาก คุยได้สบาย หยุดถ้าเจ็บ',pace:rp,dur:`${rd}`},
+    {day:'จันทร์', type:'combo',    label:`Pull+${monRunLabel}`,
+     detail:`💪 Pull Day (Pull-up / Row / Curl / Face Pull) → 🏃 ${monRunDetail}`,
+     pace:monPace, dur:`Cali 45น. + ${monRunDur}`},
+
+    {day:'อังคาร', type:'calisthenics', label:'Push Day',
+     detail:'💪 Push-up, Dip, OHP, Tricep Extension — ขาพักเต็มที่หลัง Mon run',
+     pace:'—', dur:'45–60 น.'},
+
+    {day:'พุธ',    type:'calisthenics', label:'Legs Day',
+     detail:'🦵 Calf Raise, Lunge, Bulgarian Split, Romanian DL, Copenhagen Plank, Glute Bridge — ❌ ไม่วิ่ง (ขาต้องการพักเต็มที่)',
+     pace:'—', dur:'45–60 น.'},
+
+    {day:'พฤหัสบดี', type:'combo',  label:'Mob+วิ่ง',
+     detail:`🧘 Mobility สะโพก+ข้อเท้า 20 น. (Hip Flexor, Copenhagen, Ankle) → 🏃 ${thuRunDetail}`,
+     pace:p===2?'7:00–7:30':ep, dur:`Mob 20น. + ${et2}`},
+
+    {day:'ศุกร์',  type:'calisthenics', label:'Mob ไหล่',
+     detail:'🧘 Mobility ไหล่+หลัง + Core (Bird Dog, Dead Bug, Glute Bridge) — ร่างกายพร้อม Long Run พรุ่งนี้',
+     pace:'—', dur:'30–40 น.'},
+
+    {day:'เสาร์', type:'long',       label:'Long Run',
+     detail:`🌆 ${satDetail}`,
+     pace:lp, dur:`${ld} กม.`},
+
+    {day:'อาทิตย์', type:'rest',     label:'พักผ่อน',
+     detail:'😴 พักเต็มที่ — เดินเบาๆ ยืดกล้ามเนื้อเบา นอน 7+ ชั่วโมง ฟื้นฟูก่อนสัปดาห์ใหม่',
+     pace:'—', dur:'—'},
   ];
 }
-const NOTES={1:'🎯 <strong>เฟส 1</strong> — เน้น "วิ่งได้ต่อเนื่องโดยไม่ต้องเดิน" ไม่สนเรื่อง pace เลย! เหนื่อยให้ชะลอลงทันที<br><br>🦵 สำหรับเข่าและข้อเท้าที่มีอาการ: ทำ mobility และ strengthening ทุกวัน ไม่ข้าม!<br><br>💡 <strong>สัปดาห์ 4 = Deload Week</strong> ระยะทางลดลงเพื่อให้ร่างกายฟื้นฟู',2:'🎯 <strong>เฟส 2</strong> — เริ่มเพิ่มระยะและ push pace เล็กน้อย แต่ 80% ยังต้องเป็น easy pace!<br><br>📈 เพิ่มระยะ Long Run ไม่เกิน 10%/สัปดาห์<br><br>💡 <strong>สัปดาห์ 8 = Deload Week</strong> อย่าข้าม! การพักคือการพัฒนา',3:'🎯 <strong>เฟส 3</strong> — เพิ่ม Interval Training เพื่อผลักดัน pace สู่ 6:00<br><br>⚡ Interval: วิ่งเร็ว 80–90% แล้วพักจนหายเหนื่อยก่อนรอบถัดไป<br><br>🏆 <strong>สัปดาห์ 12:</strong> Taper แล้ว Race Day!'};
-const BM={rest:'br',easy:'be',long:'bl',recovery:'brc',mobility:'bm',calisthenics:'bc'};
-const BL={rest:'พักผ่อน',easy:'วิ่งเบา',long:'Long Run',recovery:'วิ่งฟื้นตัว',mobility:'Mobility',calisthenics:'Calisthenics'};
+const NOTES={
+  1:'🎯 <strong>เฟส 1 (W1–4) — วิ่งต่อเนื่อง</strong><br><br>📋 <strong>ตารางประจำสัปดาห์:</strong><br>จันทร์: Pull Day + Easy 2.5 กม. · อังคาร: Push Day · พุธ: Legs Day (ห้ามวิ่ง!) · พฤหัส: Mob สะโพก+ข้อเท้า + Easy 3 กม. · ศุกร์: Mob ไหล่ · เสาร์: Long Run · อาทิตย์: พัก<br><br>🦵 <strong>เข่า/ข้อเท้า/หลัง:</strong> ทำ mobility ทุกวัน ไม่ข้าม! พุธเป็น Legs Day ช่วยเสริมความแข็งแรงรอบข้อต่อโดยตรง<br><br>💡 <strong>สัปดาห์ 4 = Deload</strong> — ระยะทางลด 40% ร่างกายฟื้นฟูและพร้อมเฟส 2',
+  2:'🎯 <strong>เฟส 2 (W5–8) — เพิ่มระยะทาง</strong><br><br>📋 <strong>การเปลี่ยนแปลงจากเฟส 1:</strong><br>พฤหัส: เริ่ม Tempo Run เล็กน้อย @ 7:00–7:30 · Long Run: 6–8 กม. · เพิ่มระยะไม่เกิน 10%/สัปดาห์<br><br>💪 Calisthenics 5 วันยังครบ — ร่างกายแข็งแกร่งขึ้นช่วย support การวิ่งระยะไกล<br><br>💡 <strong>สัปดาห์ 8 = Deload</strong> — อย่าข้าม! การพักคือการพัฒนา',
+  3:'🎯 <strong>เฟส 3 (W9–12) — Interval + Race Pace</strong><br><br>📋 <strong>การเปลี่ยนแปลงจากเฟส 2:</strong><br>จันทร์: เปลี่ยนเป็น Interval Run (400ม.→800ม.→1กม.) · Long Run ถึง 9–10 กม. · รวม Race Pace ใน Long Run<br><br>⚡ <strong>Interval:</strong> วิ่งเร็ว 80–90% แล้วพักจนหายเหนื่อยก่อนรอบถัดไป<br><br>🏆 <strong>สัปดาห์ 12:</strong> Taper 40% แล้ว Race Day! เป้าหมาย: 10 กม. @ 6:00/กม.'
+};
+const BM={rest:'br',easy:'be',long:'bl',recovery:'brc',mobility:'bm',calisthenics:'bc',combo:'brc'};
+const BL={rest:'พักผ่อน',easy:'วิ่งเบา',long:'Long Run',recovery:'วิ่งฟื้นตัว',mobility:'Mobility',calisthenics:'Calisthenics',combo:'Cali+วิ่ง'};
 
 // ══════════════════════════════════════
 //  SETUP
@@ -796,7 +848,7 @@ const BL={rest:'พักผ่อน',easy:'วิ่งเบา',long:'Long R
 function saveStartDate(){
   const d=document.getElementById('startDateInput').value;
   if(!d){alert('กรุณาเลือกวันที่');return;}
-  S.startDate=d;localStorage.setItem('sd',d);
+  S.startDate=d;lsSet('sd',d);
   document.getElementById('setupModal').style.display='none';
   save();init();
 }
@@ -1010,42 +1062,4 @@ function renderInjuryAlerts(){
   else{a.push({t:'pa-w',i:'⚠️',h:`อาการปวดวันนี้: ${mx}/10`,b:'ระดับกลาง ออกกำลังได้แต่สังเกตอาการ'});}
   const kh=rp.filter(p=>p.knee>=5).length,ah=rp.filter(p=>p.ankle>=5).length,bh=rp.filter(p=>p.back>=5).length;
   if(kh>=3)a.push({t:'pa-d',i:'🦵',h:`เข่าปวดต่อเนื่อง ${kh} วัน`,b:'หยุดวิ่งและทำ strengthening แทน'});
-  if(ah>=3)a.push({t:'pa-d',i:'🦶',h:`ข้อเท้าปวดต่อเนื่อง ${ah} วัน`,b:'พักและทำ ankle mobility เบาๆ'});
-  if(bh>=3)a.push({t:'pa-d',i:'💪',h:`หลังปวดต่อเนื่อง ${bh} วัน`,b:'ทำ Core strengthening และยืด Hip Flexor'});
-  document.getElementById('injuryAlerts').innerHTML=a.map(x=>`<div class="pain-alert ${x.t}"><span class="pi">${x.i}</span><div><div class="pt">${x.h}</div><div class="pb">${x.b}</div></div></div>`).join('');
-}
-
-// ══════════════════════════════════════
-//  PACE CHART
-// ══════════════════════════════════════
-let pCI=null;
-function renderPaceChart(){
-  const targets=[8.75,8.75,8.75,8.75,7.25,7.25,7.0,7.0,6.5,6.25,6.1,6.0];
-  const labs=Array.from({length:12},(_,i)=>`W${i+1}`);
-  const actual=Array(12).fill(null);
-  S.runs.forEach(r=>{if(!S.startDate||!r.pace)return;const wk=Math.min(11,Math.max(0,Math.floor((new Date(r.date)-new Date(S.startDate))/(7*86400000))));actual[wk]=actual[wk]===null?r.pace:(actual[wk]+r.pace)/2;});
-  const c=document.getElementById('paceChart');if(pCI)pCI.destroy();
-  pCI=new Chart(c,{type:'line',data:{labels:labs,datasets:[{label:'Pace เป้าหมาย',data:targets,borderColor:'rgba(77,159,255,.6)',borderWidth:2,borderDash:[6,3],pointRadius:3,pointBackgroundColor:'rgba(77,159,255,.6)',tension:.3,fill:false},{label:'Pace จริง',data:actual,borderColor:'#00e090',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#00e090',tension:.3,backgroundColor:'rgba(0,224,144,.08)',fill:true,spanGaps:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#9090b8',font:{size:11}}},tooltip:{callbacks:{label:ctx=>ctx.raw?`${ctx.dataset.label}: ${mkp(ctx.raw*60)}`:'—'}}},scales:{x:{ticks:{color:'#55557a',font:{size:10}},grid:{color:'#252540'}},y:{reverse:true,ticks:{color:'#55557a',font:{size:10},callback:v=>mkp(v*60)},grid:{color:'#252540'}}}}});
-}
-
-// ══════════════════════════════════════
-//  INIT
-// ══════════════════════════════════════
-async function init(){
-  if(!S.startDate){document.getElementById('startDateInput').value=new Date().toISOString().split('T')[0];document.getElementById('setupModal').style.display='flex';return;}
-  document.getElementById('setupModal').style.display='none';
-  // Try to load from Gist first
-  if(GIST.token&&GIST.id){await GIST.load();}
-  else{GIST.setStatus('none');}
-  reinit();
-}
-function reinit(){
-  const w=getWeek();S.planWeek=w;
-  updateOverview();renderPlan(w);buildDayTabs();renderRunTable();renderInjuryAlerts();
-  document.getElementById('dailyTip').innerHTML=TIPS[new Date().getDate()%TIPS.length];
-  setTimeout(renderMiniCharts,100);setTimeout(renderPaceChart,100);
-}
-window.addEventListener('load',init);
-</script>
-</body>
-</html>
+  if(ah>=3)a.p
