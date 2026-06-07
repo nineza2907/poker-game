@@ -1048,8 +1048,8 @@ init();
 // ============================================================
 // SYNC — Google Sheets Import / Export
 // ============================================================
-var syncGasUrl = localStorage.getItem('syncGasUrl') || '';
-var syncCsvUrl = localStorage.getItem('syncCsvUrl') || '';
+var syncGasUrl = localStorage.getItem('syncGasUrl') || 'https://script.google.com/macros/s/AKfycbwYW5jUpKcLVZbUvDB-MyfNtdbbmQHyIVz6hzp-QWwoGgHioGqZDe-LCtBajkMvXT-P/exec';
+var syncCsvUrl = localStorage.getItem('syncCsvUrl') || 'https://script.google.com/macros/s/AKfycbwYW5jUpKcLVZbUvDB-MyfNtdbbmQHyIVz6hzp-QWwoGgHioGqZDe-LCtBajkMvXT-P/exec?action=export';
 
 function syncInitUI() {
   if (syncGasUrl) document.getElementById('gas-web-url').value = syncGasUrl;
