@@ -205,6 +205,33 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
   .sc-val{font-size:17px}
   .acc-grid{grid-template-columns:1fr}
 }
+
+/* CHAT BOT */
+.chat-wrap{display:flex;flex-direction:column;height:calc(100dvh - 136px);min-height:400px}
+.chat-msgs{flex:1;overflow-y:auto;padding:4px 0 8px;display:flex;flex-direction:column;gap:10px}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.cmsg{display:flex;gap:8px;max-width:88%;animation:fadeUp .2s ease}
+.cmsg.user{align-self:flex-end;flex-direction:row-reverse;max-width:80%}
+.cmsg.bot{align-self:flex-start}
+.cavatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);margin-top:2px}
+.cbubble{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:10px 14px;font-size:13.5px;line-height:1.65;max-width:100%;word-break:break-word;white-space:pre-wrap}
+.cmsg.user .cbubble{background:var(--gold3);border-color:rgba(240,192,64,.3)}
+.cbubble img{max-width:220px;border-radius:10px;display:block;margin-top:8px}
+.chat-bar{display:flex;gap:8px;align-items:center;padding:10px 0 6px;border-top:1px solid var(--border);flex-shrink:0}
+.cinput{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:11px 16px;border-radius:24px;font-family:var(--font);font-size:13px;outline:none;transition:border-color .2s}
+.cinput:focus{border-color:var(--gold)}.cinput::placeholder{color:var(--text3)}
+.cicbtn{width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+.cicbtn:hover{border-color:var(--gold);color:var(--gold)}
+.csendbtn{width:42px;height:42px;border-radius:50%;border:none;background:var(--gold);color:#0d0d1a;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-weight:700}
+.csendbtn:hover{background:var(--gold2)}.csendbtn:disabled{opacity:.4;cursor:not-allowed}
+.typing-dots{display:flex;gap:4px;align-items:center;height:18px}
+.typing-dots span{width:6px;height:6px;background:var(--text3);border-radius:50%;animation:tdot .9s infinite}
+.typing-dots span:nth-child(2){animation-delay:.2s}.typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes tdot{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
+.img-prev-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;font-size:12px;color:var(--text2);flex-shrink:0}
+.img-prev-bar img{width:36px;height:36px;object-fit:cover;border-radius:6px}
+.img-prev-bar button{margin-left:auto;background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px}
 </style>
 </head>
 <body>
@@ -222,6 +249,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
       <button class="nb" onclick="showPage('history',this)">📋 ประวัติ</button>
       <button class="nb" onclick="showPage('analysis',this)">📈 วิเคราะห์</button>
       <button class="nb" onclick="showPage('line',this)">💬 LINE Bot</button>
+      <button class="nb" onclick="showPage('chat',this);chatInit()">🤖 แชทบอท</button>
     </div>
   </div>
 </div>
@@ -472,6 +500,34 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
   </div>
 </div>
 
+
+<!-- ===== CHATBOT ===== -->
+<div class="page" id="page-chat">
+  <div id="chat-setup-wrap" class="card" style="margin:0 0 12px">
+    <div class="card-title">🔑 ตั้งค่า Claude API Key</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">ใส่ API Key จาก <a href="https://console.anthropic.com" target="_blank" style="color:var(--gold)">console.anthropic.com</a> — เก็บในเครื่องคุณเท่านั้น</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input type="password" class="fi" id="api-key-inp" placeholder="sk-ant-api03-..." style="flex:1;min-width:200px">
+      <button class="btn-p" style="margin-top:0;padding:11px 20px;width:auto" onclick="chatSaveKey()">💾 บันทึก</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px" id="api-key-status"></div>
+  </div>
+  <div class="chat-wrap" id="chat-main-wrap" style="display:none">
+    <div class="chat-msgs" id="chat-msgs"></div>
+    <div id="img-prev-bar" class="img-prev-bar" style="display:none">
+      <img id="img-prev-thumb" src="" alt="">
+      <span id="img-prev-name">รูป</span>
+      <button onclick="chatClearImg()">✕</button>
+    </div>
+    <div class="chat-bar">
+      <input type="file" id="img-file-inp" accept="image/*" style="display:none" onchange="chatHandleImg(this)">
+      <button class="cicbtn" onclick="document.getElementById('img-file-inp').click()" title="อัพโหลดรูป/สลิป">📷</button>
+      <input class="cinput" id="chat-inp" placeholder="พิมพ์รายการ เช่น ข้าว 60 หรือถามอะไรก็ได้..."
+             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend()}">
+      <button class="csendbtn" id="chat-send-btn" onclick="chatSend()">&#9658;</button>
+    </div>
+  </div>
+</div>
 <script>
 // ============================================================
 // DATA
@@ -1071,6 +1127,244 @@ function toast(msg, type='ok') {
 // START
 // ============================================================
 init();
+
+
+// ============================================================
+// CHATBOT
+// ============================================================
+let chatHistory = [];
+let chatPendingImg = null;
+let chatApiKey = localStorage.getItem('chatApiKey') || '';
+
+function chatInit() {
+  if (chatApiKey) {
+    chatShowMain();
+  } else {
+    document.getElementById('chat-setup-wrap').style.display = '';
+    document.getElementById('chat-main-wrap').style.display = 'none';
+  }
+}
+
+function chatSaveKey() {
+  const k = document.getElementById('api-key-inp').value.trim();
+  if (!k.startsWith('sk-ant')) {
+    document.getElementById('api-key-status').textContent = 'Key ต้องขึ้นต้นด้วย sk-ant-...';
+    return;
+  }
+  chatApiKey = k;
+  localStorage.setItem('chatApiKey', k);
+  document.getElementById('api-key-status').textContent = '';
+  chatShowMain();
+  showToast('บันทึก API Key แล้ว');
+}
+
+function chatShowMain() {
+  document.getElementById('chat-setup-wrap').style.display = 'none';
+  document.getElementById('chat-main-wrap').style.display = 'flex';
+  if (chatHistory.length === 0) {
+    chatAddBot('สวัสดี! ฉันคือบัญชีบอท\n\nบอกรายการได้เลย เช่น:\n- ข้าว 60\n- สมถะ 150 ชากาแฟ\n- เติมน้ำมัน 300\n\nหรืออัพโหลดรูปสลิป\nถามอะไรก็ได้ เช่น สรุปเดือนนี้ หมวดไหนเกินงบ');
+  }
+}
+
+function chatBuildSystem() {
+  const today = new Date().toISOString().split('T')[0];
+  const ym = getPeriodKey(today);
+  const all = [
+    ...RAW.map(r => ({date:r[0],type:r[1],detail:r[2],amount:r[3],category:r[4],account:r[5]||'main'})),
+    ...localTxn
+  ];
+  const period = all.filter(t => getPeriodKey(t.date) === ym);
+  const inc = period.filter(t=>t.type==='รายรับ').reduce((s,t)=>s+t.amount,0);
+  const exp = period.filter(t=>t.type==='รายจ่าย').reduce((s,t)=>s+t.amount,0);
+  const catExp = {};
+  period.filter(t=>t.type==='รายจ่าย').forEach(t=>{ catExp[t.category]=(catExp[t.category]||0)+t.amount; });
+  const BUDGETS = {
+    'อาหาร':6000,'ชา กาแฟ':1500,'ชอปปิ้ง':2000,'เดินทาง':1500,'น้ำมัน':500,
+    'ค่ารักษา(พบแพทย์)':2000,'ดูแลตัวเอง':1000,'สัตว์เลี้ยง':1500,
+    'ค่าโทรศัพท์':300,'ค่าเน็ต':300,'ค่าไฟ':2500,'Subscription':500,
+    'ลงทุน':3000,'ออมเงินสำรองฉุกเฉิน':2000,'การศึกษา หนังสือ พัฒนาตัวเอง':500,'ภาษีสังคม':1000
+  };
+  const dl = daysLeft(ym);
+  const net = inc - exp;
+  const daily = dl > 0 ? Math.round(net/dl) : 0;
+  const acc = accConfig;
+  const bLines = Object.entries(BUDGETS).map(([c,b]) => {
+    const s = catExp[c]||0, pct = Math.round(s/b*100);
+    return `  ${c}: ${s.toLocaleString()} / ${b.toLocaleString()} (${pct}%)`;
+  }).join('\n');
+
+  return `คุณคือ "บัญชีบอท" ผู้ช่วยจัดการการเงินส่วนตัว ตอบภาษาไทยเสมอ กระชับ เป็นกันเอง
+
+วันนี้: ${today} | รอบบัญชี: ${ym} (27 ของเดือน -> 26 เดือนถัดไป)
+
+ยอดคงเหลือบัญชี:
+- บัญชีหลัก: ${acc.main.balance.toLocaleString()} บาท
+- บัญชีสำรอง: ${acc.reserve.balance.toLocaleString()} บาท
+- บัญชีสัตว์เลี้ยง: ${acc.pet.balance.toLocaleString()} บาท
+
+รอบนี้: รายรับ ${inc.toLocaleString()} | รายจ่าย ${exp.toLocaleString()} | คงเหลือ ${net.toLocaleString()} | เหลือ ${dl} วัน | ใช้ได้วันละ ${daily.toLocaleString()} บาท
+
+งบประมาณรอบนี้:
+${bLines}
+
+หมวดหมู่ที่ใช้ได้: อาหาร, ชา กาแฟ, ชอปปิ้ง, เดินทาง, น้ำมัน, ค่ารักษา(พบแพทย์), ดูแลตัวเอง, สัตว์เลี้ยง, ค่าโทรศัพท์, ค่าเน็ต, ค่าไฟ, Subscription, ลงทุน, ออมเงินสำรองฉุกเฉิน, การศึกษา หนังสือ พัฒนาตัวเอง, ภาษีสังคม, บำรุงรักษาอุปกรณ์ต่างๆ, อื่นๆ
+บัญชี: main=บัญชีหลัก, reserve=บัญชีสำรอง, pet=บัญชีสัตว์เลี้ยง
+
+กฎการบันทึก: เมื่อผู้ใช้บอกรายการหรืออ่านสลิปได้ ให้แทรก JSON tag นี้ในคำตอบ (อย่าให้ผู้ใช้เห็น tag):
+<record>{"type":"รายจ่าย","amount":60,"category":"อาหาร","detail":"ข้าว","account":"main","date":"${today}"}</record>
+- ถ้าไม่รู้หมวดให้เดาที่สมเหตุสมผล | ไม่ระบุบัญชี=main | ไม่ระบุวัน=วันนี้
+- หลังบันทึกให้ยืนยันสั้นๆ และบอกยอดที่ใช้ในหมวดนั้นเทียบงบ`;
+}
+
+function chatAddBot(text) {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'cmsg bot';
+  const txt = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  div.innerHTML = '<div class="cavatar">💰</div><div class="cbubble">' + txt + '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function chatAddUser(text, imgUrl) {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'cmsg user';
+  const txt = text ? text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+  div.innerHTML = '<div class="cbubble">' + txt + (imgUrl ? '<img src="' + imgUrl + '" alt="">' : '') + '</div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function chatAddTyping() {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'cmsg bot'; div.id = 'chat-typing';
+  div.innerHTML = '<div class="cavatar">💰</div><div class="cbubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function chatRemoveTyping() { document.getElementById('chat-typing')?.remove(); }
+
+function chatParseRecords(text) {
+  const re = /<record>([\s\S]*?)<\/record>/g;
+  let m, n = 0;
+  while ((m = re.exec(text)) !== null) {
+    try {
+      const d = JSON.parse(m[1]);
+      const txn = {
+        id: Date.now() + Math.random(),
+        date: d.date || new Date().toISOString().split('T')[0],
+        type: d.type || 'รายจ่าย',
+        detail: d.detail || '',
+        amount: parseFloat(d.amount) || 0,
+        category: d.category || 'อื่นๆ',
+        account: d.account || 'main',
+        source: 'chat',
+      };
+      if (txn.amount > 0) {
+        localTxn.push(txn);
+        if (txn.type === 'รายจ่าย') accConfig[txn.account].balance -= txn.amount;
+        else if (txn.type === 'รายรับ') accConfig[txn.account].balance += txn.amount;
+        n++;
+      }
+    } catch(e) {}
+  }
+  if (n > 0) {
+    localStorage.setItem('localTxn2', JSON.stringify(localTxn));
+    localStorage.setItem('accConfig', JSON.stringify(accConfig));
+  }
+  return n;
+}
+
+function chatClean(text) {
+  return text.replace(/<record>[\s\S]*?<\/record>/g, '').trim();
+}
+
+function chatHandleImg(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    chatPendingImg = { base64: dataUrl.split(',')[1], mime: file.type || 'image/jpeg', dataUrl, name: file.name };
+    document.getElementById('img-prev-thumb').src = dataUrl;
+    document.getElementById('img-prev-name').textContent = file.name;
+    document.getElementById('img-prev-bar').style.display = 'flex';
+  };
+  reader.readAsDataURL(file); input.value = '';
+}
+
+function chatClearImg() {
+  chatPendingImg = null;
+  document.getElementById('img-prev-bar').style.display = 'none';
+  document.getElementById('img-prev-thumb').src = '';
+}
+
+async function chatSend() {
+  const inp = document.getElementById('chat-inp');
+  const text = inp.value.trim();
+  const img = chatPendingImg;
+  if (!text && !img) return;
+  if (!chatApiKey) { chatInit(); return; }
+
+  inp.value = '';
+  chatClearImg();
+  document.getElementById('chat-send-btn').disabled = true;
+
+  chatAddUser(text, img ? img.dataUrl : null);
+
+  const content = [];
+  if (img) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: img.mime, data: img.base64 } });
+    content.push({ type: 'text', text: text || 'อ่านสลิปนี้แล้วบันทึกรายการให้ด้วย ระบุยอดเงิน วันที่ และรายละเอียด' });
+  } else {
+    content.push({ type: 'text', text: text });
+  }
+
+  chatHistory.push({ role: 'user', content: content });
+  chatAddTyping();
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': chatApiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 1024,
+        system: chatBuildSystem(),
+        messages: chatHistory,
+      }),
+    });
+
+    chatRemoveTyping();
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
+      chatAddBot('ข้อผิดพลาด: ' + (err.error ? err.error.message : resp.status));
+      chatHistory.pop();
+    } else {
+      const data = await resp.json();
+      const raw = data.content[0].text;
+      const saved = chatParseRecords(raw);
+      const display = chatClean(raw) + (saved > 0 ? '\n\nบันทึก ' + saved + ' รายการแล้ว' : '');
+      chatAddBot(display);
+      chatHistory.push({ role: 'assistant', content: [{ type: 'text', text: raw }] });
+      if (chatHistory.length > 24) chatHistory = chatHistory.slice(-20);
+    }
+  } catch(e) {
+    chatRemoveTyping();
+    chatAddBot('เชื่อมต่อไม่ได้: ' + e.message);
+    chatHistory.pop();
+  }
+
+  document.getElementById('chat-send-btn').disabled = false;
+}
 
 // Register Service Worker (PWA)
 if ('serviceWorker' in navigator) {
