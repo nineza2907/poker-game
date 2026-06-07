@@ -396,6 +396,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
     <div style="font-size:11px;color:var(--text3);margin-top:8px" id="api-key-status"></div>
   </div>
   <div class="chat-wrap" id="chat-main-wrap" style="display:none">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+      <button onclick="chatChangeKey()" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;font-family:var(--font)">🔑 เปลี่ยน API Key</button>
+    </div>
     <div class="chat-msgs" id="chat-msgs"></div>
     <div id="img-prev-bar" class="img-prev-bar" style="display:none">
       <img id="img-prev-thumb" src="" alt="">
@@ -1169,6 +1172,16 @@ function chatHandleImg(input) {
   reader.readAsDataURL(file); input.value = '';
 }
 
+
+function chatChangeKey() {
+  localStorage.removeItem('chatApiKey');
+  chatApiKey = '';
+  chatHistory = [];
+  document.getElementById('chat-main-wrap').style.display = 'none';
+  document.getElementById('chat-setup-wrap').style.display = '';
+  document.getElementById('api-key-inp').value = '';
+  document.getElementById('api-key-status').textContent = '';
+}
 function chatClearImg() {
   chatPendingImg = null;
   document.getElementById('img-prev-bar').style.display = 'none';
