@@ -232,6 +232,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 .img-prev-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;margin-bottom:6px;font-size:12px;color:var(--text2);flex-shrink:0}
 .img-prev-bar img{width:36px;height:36px;object-fit:cover;border-radius:6px}
 .img-prev-bar button{margin-left:auto;background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0 4px}
+
+/* SYNC */
+.sync-status{font-size:12px;margin-top:10px;padding:8px 12px;border-radius:10px;display:none}
+.sync-status.ok{background:var(--green2);color:var(--green);display:block}
+.sync-status.err{background:var(--red2);color:var(--red);display:block}
+.sync-status.info{background:var(--blue2);color:var(--blue);display:block}
+.btn-sec{padding:11px 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-sec:hover{border-color:var(--gold);color:var(--gold)}
 </style>
 </head>
 <body>
@@ -351,6 +359,35 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
     <button class="btn-p" onclick="addTxn()">✅ บันทึกรายการ</button>
   </div>
   <div class="card"><div class="card-title">บันทึกด่วน</div><div class="qa-chips" id="qa"></div></div>
+
+  <div class="card" id="sync-card">
+    <div class="card-title">🔄 ซิงค์กับ Google Sheets</div>
+
+    <div class="fg" style="margin-bottom:12px">
+      <label class="fl">GAS Web App URL (สำหรับ Export)</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" class="fi" id="gas-web-url" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;font-size:11px">
+        <button class="btn-sec" onclick="syncSaveGasUrl()">บันทึก</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">deploy GAS เป็น Web App แล้ววาง URL ที่นี่</div>
+    </div>
+
+    <div class="fg" style="margin-bottom:16px">
+      <label class="fl">CSV URL (สำหรับ Import จาก Sheets)</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" class="fi" id="sheets-csv-url" placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=..." style="flex:1;font-size:11px">
+        <button class="btn-sec" onclick="syncSaveCsvUrl()">บันทึก</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:4px">File → Share → Publish to web → CSV</div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-p" style="margin-top:0;flex:1" onclick="syncExportToSheets()">📤 Export → Sheets</button>
+      <button class="btn-p" style="margin-top:0;flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text)" onclick="syncImportFromSheets()">📥 Import ← Sheets</button>
+      <button class="btn-sec" onclick="syncDownloadJSON()">⬇️ Download JSON</button>
+    </div>
+    <div class="sync-status" id="sync-status"></div>
+  </div>
 </div>
 
 <!-- ===== HISTORY ===== -->
@@ -550,6 +587,7 @@ function daysLeft(ym) {
 // PAGE ROUTING
 // ============================================================
 function showPage(name, el) {
+  if(name==='add') setTimeout(syncInitUI,50);
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -1005,6 +1043,139 @@ function toast(msg, type='ok') {
 // ============================================================
 init();
 
+
+
+// ============================================================
+// SYNC — Google Sheets Import / Export
+// ============================================================
+var syncGasUrl = localStorage.getItem('syncGasUrl') || '';
+var syncCsvUrl = localStorage.getItem('syncCsvUrl') || '';
+
+function syncInitUI() {
+  if (syncGasUrl) document.getElementById('gas-web-url').value = syncGasUrl;
+  if (syncCsvUrl) document.getElementById('sheets-csv-url').value = syncCsvUrl;
+}
+
+function syncSaveGasUrl() {
+  syncGasUrl = document.getElementById('gas-web-url').value.trim();
+  localStorage.setItem('syncGasUrl', syncGasUrl);
+  syncMsg('บันทึก GAS URL แล้ว', 'ok');
+}
+
+function syncSaveCsvUrl() {
+  syncCsvUrl = document.getElementById('sheets-csv-url').value.trim();
+  localStorage.setItem('syncCsvUrl', syncCsvUrl);
+  syncMsg('บันทึก CSV URL แล้ว', 'ok');
+}
+
+function syncMsg(text, type) {
+  const el = document.getElementById('sync-status');
+  el.textContent = text;
+  el.className = 'sync-status ' + type;
+  if (type === 'ok') setTimeout(() => { el.className = 'sync-status'; }, 4000);
+}
+
+// ── Export: Dashboard → Google Sheets ──────────────────────────────────────
+function syncExportToSheets() {
+  if (!syncGasUrl) { syncMsg('กรุณาใส่ GAS Web App URL ก่อน', 'err'); return; }
+  const all = getAllTxns();
+  syncMsg('กำลังส่งข้อมูล ' + all.length + ' รายการ...', 'info');
+  fetch(syncGasUrl, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'append', transactions: all }),
+  }).then(() => {
+    syncMsg('ส่งข้อมูล ' + all.length + ' รายการไป Sheets แล้ว (no-cors)', 'ok');
+  }).catch(e => {
+    syncMsg('ส่งไม่ได้: ' + e.message, 'err');
+  });
+}
+
+// ── Import: Google Sheets → Dashboard ──────────────────────────────────────
+async function syncImportFromSheets() {
+  const url = syncCsvUrl || document.getElementById('sheets-csv-url').value.trim();
+  if (!url) { syncMsg('กรุณาใส่ CSV URL ก่อน', 'err'); return; }
+  syncMsg('กำลังดึงข้อมูล...', 'info');
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+
+    // Detect JSON (from GAS doGet) or CSV
+    let newTxns = [];
+    if (text.trim().startsWith('{')) {
+      const data = JSON.parse(text);
+      newTxns = (data.transactions || []).map(syncNormalizeTxn);
+    } else {
+      newTxns = syncParseCSV(text).map(syncNormalizeTxn);
+    }
+
+    if (newTxns.length === 0) { syncMsg('ไม่พบข้อมูลใน Sheets', 'err'); return; }
+
+    // Merge: add only rows not in localTxn (by date+amount+detail)
+    const existingKeys = new Set(localTxn.map(t => t.date + '|' + t.amount + '|' + (t.detail||'')));
+    const added = newTxns.filter(t => {
+      const k = t.date + '|' + t.amount + '|' + (t.detail||'');
+      return !existingKeys.has(k);
+    });
+
+    added.forEach(t => localTxn.push(t));
+    if (added.length > 0) localStorage.setItem('localTxn2', JSON.stringify(localTxn));
+    syncMsg('นำเข้า ' + added.length + ' รายการใหม่ (ข้าม ' + (newTxns.length - added.length) + ' ซ้ำ)', 'ok');
+    setTimeout(() => renderDashboard(), 500);
+  } catch(e) {
+    syncMsg('นำเข้าไม่ได้: ' + e.message, 'err');
+  }
+}
+
+function syncParseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (vals[i] || '').replace(/"/g,'').trim(); });
+    return obj;
+  }).filter(r => r.date || r.วันที่);
+}
+
+function syncNormalizeTxn(r) {
+  return {
+    id: r.id || (Date.now() + Math.random()),
+    date: String(r.date || r.วันที่ || '').slice(0, 10),
+    type: r.type || r.ประเภท || 'รายจ่าย',
+    detail: r.detail || r.รายละเอียด || r.ร้านค้า || '',
+    amount: parseFloat(r.amount || r.จำนวนเงิน) || 0,
+    category: r.category || r.หมวดหมู่ || 'อื่นๆ',
+    account: r.account || 'main',
+    source: r.source || 'sheets',
+  };
+}
+
+// ── Download JSON backup ─────────────────────────────────────────────────────
+function syncDownloadJSON() {
+  const all = getAllTxns();
+  const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'transactions-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  syncMsg('ดาวน์โหลด ' + all.length + ' รายการแล้ว', 'ok');
+}
+
+function getAllTxns() {
+  return [
+    ...RAW.map((r, i) => ({
+      id: 'raw-' + i,
+      date: r[0], type: r[1], detail: r[2], amount: r[3], category: r[4],
+      account: r[5] || 'main', source: 'raw',
+    })),
+    ...localTxn,
+  ];
+}
 
 // ============================================================
 // CHATBOT
