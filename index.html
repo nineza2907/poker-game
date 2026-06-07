@@ -935,16 +935,7 @@ function saveLineConfig() {
   toast('✅ บันทึก LINE Config แล้ว');
 }
 
-function updateLineStatus() {
-  const hasToken = !!lineConfig.token;
-  const hasGas = !!lineConfig.gasUrl;
-  document.getElementById('dot-oa').className = 'status-dot '+(hasToken?'ok':'warn');
-  document.getElementById('lbl-oa').textContent = 'LINE OA: '+(hasToken?'✅ มี Token แล้ว':'⚠️ ยังไม่ได้ตั้งค่า');
-  document.getElementById('dot-gas').className = 'status-dot '+(hasGas?'ok':'warn');
-  document.getElementById('lbl-gas').textContent = 'Google Apps Script: '+(hasGas?'✅ มี Webhook URL':'⚠️ ยังไม่ได้ตั้งค่า');
-  document.getElementById('dot-sheet').className = 'status-dot ok';
-  document.getElementById('lbl-sheet').textContent = 'Google Sheets: ✅ พร้อมใช้';
-}
+function updateLineStatus() {} // LINE Bot page removed
 
 // Parse LINE message locally for testing
 function parseLineMsg(msg) {
@@ -1015,9 +1006,9 @@ init();
 // ============================================================
 // CHATBOT
 // ============================================================
-let chatHistory = [];
-let chatPendingImg = null;
-let chatApiKey = localStorage.getItem('chatApiKey') || '';
+var chatHistory = [];
+var chatPendingImg = null;
+var chatApiKey = localStorage.getItem('chatApiKey') || '';
 
 function chatInit() {
   if (chatApiKey) {
